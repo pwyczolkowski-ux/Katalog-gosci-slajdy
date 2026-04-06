@@ -361,12 +361,13 @@ async function parseAndExtract(buf, filename) {
 }
 
 // ── EXTRACT EMBEDDED IMAGES FROM XLSX ──
+// Col F = index 5 (photos), Col I = index 8 (logos) — 0-indexed
+var COL_PHOTO = 5, COL_LOGO = 8;
+
 async function extractImages(buf) {
-  var result = {}; // dataIdx -> {photo:{buf,ext}, logo:{buf,ext}}
+  var result = {}; // drawingRow (0-indexed) -> {photo:{buf,ext}, logo:{buf,ext}}
   try {
     var zip = await JSZip.loadAsync(buf);
-
-    // Find all drawing XML files
     var drawFiles = Object.keys(zip.files).filter(function(k){
       return /^xl\/drawings\/drawing\d+\.xml$/.test(k);
     });
@@ -374,63 +375,55 @@ async function extractImages(buf) {
     for (var d = 0; d < drawFiles.length; d++) {
       var drawKey = drawFiles[d];
       var drawXml = await zip.file(drawKey).async('string');
-
-      // Load rels
       var num = drawKey.match(/drawing(\d+)\.xml$/)[1];
       var relsKey = 'xl/drawings/_rels/drawing' + num + '.xml.rels';
       if (!zip.file(relsKey)) continue;
       var relsXml = await zip.file(relsKey).async('string');
 
-      // Parse rels: Id -> media path
+      // Build rId -> target map
       var rMap = {};
-      var rm;
-      var rRe = /Id="([^"]+)"[^>]*Target="([^"]+)"/g;
-      while ((rm = rRe.exec(relsXml)) !== null) {
-        rMap[rm[1]] = rm[2];
-      }
+      var rm, rRe = /Id="([^"]+)"[^>]*Target="([^"]+)"/g;
+      while ((rm = rRe.exec(relsXml)) !== null) rMap[rm[1]] = rm[2];
 
-      // Parse anchors by splitting on <xdr:from>
-      // Each section after <xdr:from> has col, row, and r:embed
-      var parts = drawXml.split('<xdr:from>');
-      for (var p = 1; p < parts.length; p++) {
-        var part = parts[p];
-        var colM = part.match(/<xdr:col>(\d+)<\/xdr:col>/);
-        var rowM = part.match(/<xdr:row>(\d+)<\/xdr:row>/);
-        // r:embed can be in blipFill after the from block
-        // need to find next r:embed in this anchor section
-        // anchor ends at </xdr:twoCellAnchor> or </xdr:oneCellAnchor>
-        var anchorEnd = part.indexOf('</xdr:');
-        var anchorSection = anchorEnd > 0 ? parts[p-1] + '<xdr:from>' + part.substring(0, anchorEnd + 200) : part;
-        var rIdM = anchorSection.match(/r:embed="([^"]+)"/);
+      // Split by COMPLETE anchor blocks — each block is self-contained.
+      // This guarantees col/row and r:embed always come from the same image.
+      var anchorRe = /<xdr:(?:twoCellAnchor|oneCellAnchor)[^>]*>([\s\S]*?)<\/xdr:(?:twoCellAnchor|oneCellAnchor)>/g;
+      var am;
+      while ((am = anchorRe.exec(drawXml)) !== null) {
+        var anchor = am[1]; // content inside the anchor tag
 
+        // <xdr:from> block gives top-left cell of the image
+        var fromM = anchor.match(/<xdr:from>([\s\S]*?)<\/xdr:from>/);
+        if (!fromM) continue;
+        var fromBlock = fromM[1];
+
+        var colM = fromBlock.match(/<xdr:col>(\d+)<\/xdr:col>/);
+        var rowM = fromBlock.match(/<xdr:row>(\d+)<\/xdr:row>/);
         if (!colM || !rowM) continue;
 
-        var col = parseInt(colM[1]);  // 5=F (Photo), 8=I (Logo)
-        var row = parseInt(rowM[1]);  // 0-indexed drawing row = data[] index
-        
-        // Only interested in photo col (5=F) and logo col (8=I)
-        if (col !== 5 && col !== 8) continue;
+        var col = parseInt(colM[1]);  // 5 = col F (photo), 8 = col I (logo)
+        var row = parseInt(rowM[1]);  // 0-indexed Excel row → matches dataIdx
+
+        if (col !== COL_PHOTO && col !== COL_LOGO) continue;
+
+        // r:embed is inside <a:blip> within this same anchor — unambiguous
+        var rIdM = anchor.match(/r:embed="([^"]+)"/);
         if (!rIdM) continue;
 
         var rId = rIdM[1];
         var relTarget = rMap[rId];
         if (!relTarget) continue;
 
-        // Resolve path: "../media/image1.png" -> "xl/media/image1.png"
-        var mediaName = relTarget.replace(/\.\.\//g,'').replace(/^media\//,'media/');
-        var mediaKey = 'xl/' + mediaName;
-        if (!zip.file(mediaKey)) {
-          // Try alternate path
-          mediaKey = 'xl/media/' + relTarget.split('/').pop();
-        }
+        // Resolve media path: "../media/image1.png" → "xl/media/image1.png"
+        var mediaKey = 'xl/media/' + relTarget.split('/').pop();
         if (!zip.file(mediaKey)) continue;
 
         var imgBuf = await zip.file(mediaKey).async('arraybuffer');
         var ext = mediaKey.split('.').pop().toLowerCase();
 
         if (!result[row]) result[row] = {};
-        if (col === 5 && !result[row].photo) result[row].photo = {buf:imgBuf, ext:ext};
-        if (col === 8 && !result[row].logo)  result[row].logo  = {buf:imgBuf, ext:ext};
+        if (col === COL_PHOTO && !result[row].photo) result[row].photo = {buf:imgBuf, ext:ext};
+        if (col === COL_LOGO  && !result[row].logo)  result[row].logo  = {buf:imgBuf, ext:ext};
       }
     }
   } catch(e) {
