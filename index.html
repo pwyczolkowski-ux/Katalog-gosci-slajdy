@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CC Poland · Generator Slajdów</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--navy:#121635;--red:#DC143C;--yellow:#FFD503;--white:#fff;--g1:#F5F5F5;--g2:#E8E8E8;--g3:#AAAAAA;--g4:#555;--font:'Roboto',Arial,sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);font-weight:300;background:#fff;color:var(--navy);font-size:14px;line-height:1.6}
+header{background:var(--navy);height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:baseline;color:#fff;gap:2px}
+.logo-cc{font-weight:400;font-size:20px;letter-spacing:3px}
+.logo-dot{color:var(--red);font-weight:400;font-size:22px}
+.logo-sub{font-size:10px;font-weight:300;color:rgba(255,255,255,.35);margin-left:10px;letter-spacing:.08em;text-transform:uppercase}
+#hev{font-size:11px;font-weight:300;color:rgba(255,255,255,.4);max-width:380px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+main{max-width:1140px;margin:0 auto;padding:32px 24px 60px}
+
+/* ── Drop zone ── */
+.dz{border:2px dashed var(--g2);padding:48px 32px;text-align:center;cursor:pointer;transition:all .2s;position:relative;margin-bottom:20px}
+.dz:hover,.dz.over{border-color:var(--navy);background:var(--g1)}
+.dz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-ic{width:32px;height:32px;background:var(--navy);margin:0 auto 14px;position:relative}
+.dz-ic::after{content:'';position:absolute;top:8px;right:8px;width:10px;height:10px;background:var(--red)}
+.dz-t{font-size:15px;font-weight:300;color:var(--navy);margin-bottom:6px}
+.dz-s{font-size:12px;color:var(--g3)}
+.dz-s strong{color:var(--navy);font-weight:400}
+
+/* ── Loaded / img zone ── */
+.loaded{display:none;align-items:center;gap:12px;padding:14px 20px;border:1px solid var(--g2);background:var(--g1);margin-bottom:12px}
+.loaded.show{display:flex}
+.loaded-dot{width:8px;height:8px;background:var(--red);flex-shrink:0}
+.loaded-name{font-size:13px;font-weight:400;flex:1}
+.loaded-chg{font-size:11px;color:var(--g3);cursor:pointer;text-decoration:underline}
+.img-zone{display:none;border:1px dashed var(--g2);padding:16px 20px;margin-bottom:16px;position:relative;cursor:pointer;transition:border-color .2s}
+.img-zone.show{display:block}
+.img-zone:hover,.img-zone.over{border-color:var(--navy)}
+.img-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.img-zone-inner{display:flex;align-items:center;gap:14px}
+.img-icon{font-size:22px;line-height:1}
+.img-txt{font-size:12px;color:var(--g4)}
+.img-txt strong{color:var(--navy);font-weight:400}
+.img-cnt{margin-left:auto;font-size:11px;font-weight:400;color:var(--navy);background:var(--yellow);padding:2px 10px;min-width:28px;text-align:center}
+
+/* ── Error ── */
+.err{background:#FEF0F0;border-left:3px solid var(--red);padding:12px 16px;margin-bottom:16px;font-size:12px;color:#8B0000;display:none}
+.err.show{display:block}
+
+/* ── Banner ── */
+#banner{background:var(--navy);padding:28px 32px 24px;margin-bottom:24px;display:none}
+.bn{font-size:22px;font-weight:100;color:#fff}
+.bm{font-size:11px;font-weight:300;color:rgba(255,255,255,.4);margin-top:6px;letter-spacing:.06em;text-transform:uppercase}
+.bs{display:flex;gap:36px;margin-top:20px}
+.sv{font-size:28px;font-weight:100;color:#fff;line-height:1}
+.sv.r{color:var(--red)}.sv.y{color:var(--yellow)}
+.sl{font-size:9px;font-weight:400;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.1em;margin-top:5px}
+
+/* ── Filter bar ── */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.fl{font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:.08em;color:var(--g3)}
+.pill{padding:5px 14px;font-family:var(--font);font-size:11px;cursor:pointer;border:1px solid var(--g2);background:#fff;color:var(--g4);transition:all .15s}
+.pill:hover{border-color:var(--navy);color:var(--navy)}.pill.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.pill-y.on{background:var(--yellow);color:var(--navy);border-color:var(--yellow)}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 20px;font-family:var(--font);font-size:12px;font-weight:400;letter-spacing:.04em;cursor:pointer;border:none;transition:all .15s;text-transform:uppercase}
+.btn-n{background:var(--navy);color:#fff}.btn-n:hover:not(:disabled){background:#1e2547}
+.btn-r{background:var(--red);color:#fff}.btn-r:hover:not(:disabled){background:#b01030}
+.btn-y{background:var(--yellow);color:var(--navy)}.btn-y:hover:not(:disabled){background:#e6be00}
+.btn-o{background:transparent;color:var(--navy);border:1px solid var(--navy)}.btn-o:hover:not(:disabled){background:var(--g1)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-sm{padding:7px 15px;font-size:11px}
+
+/* ── Table ── */
+.tw{border:1px solid var(--g2);overflow:hidden}
+.tb{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--g2);background:var(--g1)}
+.tc{font-size:12px;font-weight:300;color:var(--g4)}.tc strong{color:var(--navy);font-weight:400}
+.ta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tscroll{overflow-x:auto;max-height:520px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;min-width:700px}
+th{padding:9px 14px;text-align:left;font-size:10px;font-weight:400;text-transform:uppercase;letter-spacing:.08em;color:var(--g4);border-bottom:1px solid var(--g2);background:var(--g1);white-space:nowrap;position:sticky;top:0}
+td{padding:10px 14px;font-size:13px;font-weight:300;border-bottom:1px solid var(--g2);vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:var(--g1)}
+.lp{font-family:monospace;font-size:11px;color:var(--g3);width:36px}
+.nm{font-weight:400;color:var(--navy)}.ns{font-size:11px;color:var(--g3);margin-top:1px}
+.el{max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--g4)}
+.el-sm{max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--g4)}
+
+/* ── Status indicators ── */
+.ok{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:400;color:#1a7a3a}
+.ok::before{content:'';display:inline-block;width:6px;height:6px;background:#1a7a3a;border-radius:50%}
+.miss{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:300;color:var(--g3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.miss::before{content:'';display:inline-block;width:6px;height:6px;background:var(--g3);border-radius:50%;flex-shrink:0}
+.warn{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:400;color:#b87800}
+.warn::before{content:'';display:inline-block;width:6px;height:6px;background:#b87800;border-radius:50%}
+
+/* ── Tpl status ── */
+.tpl-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:11px;border-bottom:1px solid var(--g2);background:var(--g1);margin-bottom:20px}
+.tpl-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.tpl-dot.ok-d{background:#1a7a3a}
+.tpl-dot.err-d{background:var(--red)}
+.tpl-dot.load-d{background:var(--yellow);animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.4}to{opacity:1}}
+.tpl-txt{font-weight:400}
+
+/* ── Progress ── */
+.prog-wrap{display:none;margin-top:12px}
+.prog-wrap.show{display:block}
+.prog-bar{height:4px;background:var(--g2);overflow:hidden}
+.prog-fill{height:100%;background:var(--red);width:0%;transition:width .2s}
+.prog-lbl{font-size:11px;color:var(--g4);margin-top:5px}
+
+/* ── empty state ── */
+.empty{padding:48px;text-align:center;color:var(--g3);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <span class="logo-cc">CC</span>
+    <span class="logo-dot">.</span>
+    <span class="logo-sub">Poland · Generator Slajdów</span>
+  </div>
+  <span id="hev"></span>
+</header>
+
+<main id="app">
+
+  <!-- Template status -->
+  <div class="tpl-bar" id="tpl-bar">
+    <div class="tpl-dot load-d" id="tpl-dot"></div>
+    <span class="tpl-txt" id="tpl-txt">Wczytuję szablon <em>Szablon_slajdu_CC.pptx</em>…</span>
+  </div>
+
+  <!-- XLSX drop zone -->
+  <div class="dz" id="dz"
+    ondragover="event.preventDefault();this.classList.add('over')"
+    ondragleave="this.classList.remove('over')"
+    ondrop="onDrop(event)">
+    <input type="file" accept=".xlsx,.xls" onchange="onFile(this.files[0])">
+    <div class="dz-ic"></div>
+    <div class="dz-t">Wrzuć Katalog Gości</div>
+    <div class="dz-s">Przeciągnij plik <strong>.xlsx</strong> lub kliknij · <em>Katalog_Gości_CC_2026.xlsx</em></div>
+  </div>
+
+  <!-- Loaded indicator -->
+  <div class="loaded" id="loaded">
+    <div class="loaded-dot"></div>
+    <span class="loaded-name" id="loaded-name">—</span>
+    <span class="loaded-chg" onclick="resetFile()">Zmień plik</span>
+  </div>
+
+  <!-- Error -->
+  <div class="err" id="err"></div>
+
+  <!-- Image upload zone -->
+  <div class="img-zone" id="img-zone"
+    ondragover="event.preventDefault();this.classList.add('over')"
+    ondragleave="this.classList.remove('over')"
+    ondrop="onImgDrop(event)">
+    <input type="file" accept="image/*" multiple onchange="handleImages(this.files)" id="img-input">
+    <div class="img-zone-inner">
+      <span class="img-icon">🖼️</span>
+      <div class="img-txt">
+        <strong>Zdjęcia i logotypy</strong><br>
+        Przeciągnij lub kliknij — wszystkie pliki naraz (PNG, JPG). Aplikacja dopasuje po nazwie pliku z XLSX.
+      </div>
+      <span class="img-cnt" id="img-cnt">0 plików</span>
+    </div>
+  </div>
+
+  <!-- Stats banner -->
+  <div id="banner">
+    <div class="bn" id="bn">—</div>
+    <div class="bm" id="bm">Katalog Gości CC Poland</div>
+    <div class="bs">
+      <div><div class="sv" id="st">—</div><div class="sl">Osób</div></div>
+      <div><div class="sv y" id="sf">—</div><div class="sl">Zdjęcia dopasowane</div></div>
+      <div><div class="sv y" id="sl">—</div><div class="sl">Loga dopasowane</div></div>
+      <div><div class="sv r" id="sc">—</div><div class="sl">Kompletne</div></div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div id="content" style="display:none">
+    <div class="filter-bar">
+      <span class="fl">Pokaż:</span>
+      <button class="pill on" onclick="setF('all',this)">Wszyscy</button>
+      <button class="pill" onclick="setF('complete',this)">Kompletne</button>
+      <button class="pill" onclick="setF('nophoto',this)">Brak zdjęcia</button>
+      <button class="pill" onclick="setF('nologo',this)">Brak logo</button>
+    </div>
+    <div class="tw">
+      <div class="tb">
+        <span class="tc" id="tc-label">Wiersze: <strong>0</strong></span>
+        <div class="ta">
+          <span id="gen-info" style="font-size:11px;color:var(--g4)"></span>
+          <button class="btn btn-r btn-sm" id="btn-gen" onclick="generatePPTX()" disabled>Generuj PPTX</button>
+        </div>
+      </div>
+      <div class="prog-wrap" id="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+        <div class="prog-lbl" id="prog-lbl">Generuję…</div>
+      </div>
+      <div class="tscroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Imię i Nazwisko</th>
+              <th>Firma</th>
+              <th>Branża</th>
+              <th>Rodzaj Gościa</th>
+              <th>Skala biznesu</th>
+              <th>Zdjęcie</th>
+              <th>Logo</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── STATE ──
+var templateBuf = null, templateReady = false;
+var rows = [], filesMap = new Map(), colMap = {};
+var filt = 'all';
+
+// ── TEMPLATE LOAD ──
+window.addEventListener('load', loadTemplate);
+
+async function loadTemplate() {
+  try {
+    setTplStatus('load', 'Wczytuję szablon…');
+    var r = await fetch('./Szablon_slajdu_CC.pptx');
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' — upewnij się, że plik jest w repozytorium');
+    templateBuf = await r.arrayBuffer();
+    templateReady = true;
+    setTplStatus('ok', 'Szablon gotowy · Szablon_slajdu_CC.pptx');
+  } catch(e) {
+    setTplStatus('err', 'Błąd szablonu: ' + e.message);
+    console.error(e);
+  }
+}
+
+function setTplStatus(state, txt) {
+  var dot = document.getElementById('tpl-dot');
+  var t = document.getElementById('tpl-txt');
+  dot.className = 'tpl-dot ' + (state==='ok'?'ok-d':state==='err'?'err-d':'load-d');
+  t.innerHTML = esc(txt);
+  updateGenBtn();
+}
+
+// ── FILE DROP / UPLOAD ──
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('dz').classList.remove('over');
+  var f = e.dataTransfer.files[0];
+  if (f) onFile(f);
+}
+function onFile(file) {
+  if (!file) return;
+  if (!/\.xlsx?$/i.test(file.name)) { showErr('Wybierz plik .xlsx'); return; }
+  hideErr();
+  document.getElementById('loaded-name').textContent = file.name;
+  document.getElementById('loaded').classList.add('show');
+  document.getElementById('dz').style.display = 'none';
+  document.getElementById('hev').textContent = file.name;
+  var fr = new FileReader();
+  fr.onload = function(e) { parseXLSX(e.target.result, file.name); };
+  fr.readAsArrayBuffer(file);
+}
+function resetFile() {
+  document.getElementById('dz').style.display = '';
+  document.getElementById('loaded').classList.remove('show');
+  document.getElementById('banner').style.display = 'none';
+  document.getElementById('content').style.display = 'none';
+  document.getElementById('img-zone').classList.remove('show');
+  document.getElementById('hev').textContent = '';
+  rows = []; colMap = {}; filt = 'all';
+}
+
+function onImgDrop(e) {
+  e.preventDefault();
+  document.getElementById('img-zone').classList.remove('over');
+  handleImages(e.dataTransfer.files);
+}
+function handleImages(files) {
+  var loaded = 0;
+  Array.from(files).forEach(function(file) {
+    if (!/\.(png|jpg|jpeg|gif|bmp|webp|tif|tiff)$/i.test(file.name)) return;
+    var fr = new FileReader();
+    fr.readAsArrayBuffer(file);
+    fr.onload = function(e) {
+      filesMap.set(file.name.toLowerCase().trim(), {name: file.name, buf: e.target.result});
+      loaded++;
+      if (loaded === files.length) { updateAfterImages(); }
+    };
+  });
+}
+function updateAfterImages() {
+  document.getElementById('img-cnt').textContent = filesMap.size + ' plików';
+  updateBanner();
+  renderTable();
+  updateGenBtn();
+}
+
+// ── PARSE XLSX ──
+function parseXLSX(buf, filename) {
+  try {
+    var wb = XLSX.read(buf, {type:'array', raw:true});
+    var ws = wb.Sheets['od 01.2026'] || wb.Sheets[wb.SheetNames[0]];
+    if (!ws) throw new Error('Nie znaleziono arkusza');
+    var data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+
+    // Find header row (contains 'Imię')
+    var headerRow = -1;
+    for (var i = 0; i < Math.min(15, data.length); i++) {
+      if (data[i].some(function(v){return String(v||'').toLowerCase().includes('imi');})) {
+        headerRow = i; break;
+      }
+    }
+    if (headerRow === -1) throw new Error('Nie znaleziono wiersza nagłówka z kolumną "Imię"');
+
+    var headers = data[headerRow].map(function(v){return String(v||'').toLowerCase().trim();});
+
+    function fc() {
+      var args = Array.prototype.slice.call(arguments);
+      for (var a = 0; a < args.length; a++) {
+        var idx = headers.findIndex(function(h){return h.includes(args[a]);});
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    }
+
+    colMap = {
+      imie:     fc('imię','imie'),
+      nazwisko: fc('nazwisko'),
+      photoFile:fc('photo nazwa','photo_nazwa'),
+      firma:    fc('firma'),
+      logoFile: fc('logo nazwa','logo_nazwa'),
+      branza:   fc('branża','branza'),
+      opis:     fc('opisy / slajd','opisy/slajd','opis'),
+      rodzaj:   fc('rodzaj gościa','rodzaj goscia','rodzaj'),
+      skala:    fc('skala biznesu','skala'),
+      miasto:   fc('miasto'),
+    };
+
+    if (colMap.imie === -1) throw new Error('Nie znaleziono kolumny "Imię" — sprawdź strukturę pliku');
+
+    rows = [];
+    for (var i = headerRow + 1; i < data.length; i++) {
+      var r = data[i];
+      var imie = String(r[colMap.imie] || '').trim();
+      var nazwisko = String(r[colMap.nazwisko] || '').trim();
+      if (!imie && !nazwisko) continue;
+      rows.push({
+        imie:      imie,
+        nazwisko:  nazwisko,
+        photoFile: colMap.photoFile >= 0 ? String(r[colMap.photoFile]||'').trim() : '',
+        firma:     colMap.firma >= 0     ? String(r[colMap.firma]||'').trim() : '',
+        logoFile:  colMap.logoFile >= 0  ? String(r[colMap.logoFile]||'').trim() : '',
+        branza:    colMap.branza >= 0    ? String(r[colMap.branza]||'').trim() : '',
+        opis:      colMap.opis >= 0      ? String(r[colMap.opis]||'').trim() : '',
+        rodzaj:    colMap.rodzaj >= 0    ? String(r[colMap.rodzaj]||'').trim() : '',
+        skala:     colMap.skala >= 0     ? String(r[colMap.skala]||'').trim() : '',
+        miasto:    colMap.miasto >= 0    ? String(r[colMap.miasto]||'').trim() : '',
+      });
+    }
+
+    document.getElementById('img-zone').classList.add('show');
+    document.getElementById('banner').style.display = 'block';
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('bn').textContent = 'Katalog Gości CC Poland';
+    updateBanner();
+    renderTable();
+    updateGenBtn();
+    hideErr();
+  } catch(e) {
+    console.error(e);
+    showErr('Błąd parsowania: ' + e.message);
+  }
+}
+
+// ── HELPERS ──
+function hasPhoto(p) { return p.photoFile && filesMap.has(p.photoFile.toLowerCase().trim()); }
+function hasLogo(p)  { return p.logoFile  && filesMap.has(p.logoFile.toLowerCase().trim()); }
+function isComplete(p) { return hasPhoto(p) && hasLogo(p); }
+
+function updateBanner() {
+  var total = rows.length;
+  var photos = rows.filter(hasPhoto).length;
+  var logos  = rows.filter(hasLogo).length;
+  var complete = rows.filter(isComplete).length;
+  document.getElementById('st').textContent = total;
+  document.getElementById('sf').textContent = photos;
+  document.getElementById('sl').textContent = logos;
+  document.getElementById('sc').textContent = complete;
+}
+
+function getFiltered() {
+  return rows.filter(function(p) {
+    if (filt === 'complete') return isComplete(p);
+    if (filt === 'nophoto')  return !hasPhoto(p);
+    if (filt === 'nologo')   return !hasLogo(p);
+    return true;
+  });
+}
+
+function setF(f, btn) {
+  filt = f;
+  document.querySelectorAll('.pill').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  renderTable();
+  updateGenBtn();
+}
+
+function renderTable() {
+  var list = getFiltered();
+  document.getElementById('tc-label').innerHTML =
+    'Wiersze: <strong>' + list.length + '</strong>' +
+    (list.length !== rows.length ? ' z ' + rows.length : '');
+
+  var html = list.map(function(p, i) {
+    var ph = hasPhoto(p);
+    var lg = hasLogo(p);
+    var photoCell = ph
+      ? '<span class="ok">dopasowane</span>'
+      : (p.photoFile ? '<span class="miss" title="'+esc(p.photoFile)+'">'+esc(p.photoFile)+'</span>' : '<span class="miss">—</span>');
+    var logoCell = lg
+      ? '<span class="ok">dopasowane</span>'
+      : (p.logoFile ? '<span class="miss" title="'+esc(p.logoFile)+'">'+esc(p.logoFile)+'</span>' : '<span class="miss">—</span>');
+
+    return '<tr>' +
+      '<td class="lp">' + (i+1) + '</td>' +
+      '<td><div class="nm">' + esc(p.imie) + ' ' + esc(p.nazwisko) + '</div>' +
+           (p.miasto ? '<div class="ns">' + esc(p.miasto) + '</div>' : '') + '</td>' +
+      '<td class="el">' + esc(p.firma) + '</td>' +
+      '<td class="el">' + esc(p.branza) + '</td>' +
+      '<td class="el-sm">' + esc(p.rodzaj) + '</td>' +
+      '<td class="el-sm">' + esc(p.skala) + '</td>' +
+      '<td>' + photoCell + '</td>' +
+      '<td>' + logoCell + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('tbody').innerHTML = html ||
+    '<tr><td colspan="8"><div class="empty">Brak wyników dla aktywnego filtra</div></td></tr>';
+}
+
+function updateGenBtn() {
+  var btn = document.getElementById('btn-gen');
+  var info = document.getElementById('gen-info');
+  var list = getFiltered();
+  var n = list.length;
+
+  if (!templateReady) {
+    btn.disabled = true;
+    btn.textContent = 'Oczekiwanie na szablon';
+    info.textContent = '';
+    return;
+  }
+  if (!rows.length) {
+    btn.disabled = true;
+    btn.textContent = 'Generuj PPTX';
+    info.textContent = '';
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Generuj PPTX (' + n + ' slajdów)';
+  var complete = list.filter(isComplete).length;
+  info.textContent = complete + ' kompletnych · ' + (n - complete) + ' bez zdjęć/logo';
+}
+
+// ── PPTX GENERATION ──
+async function generatePPTX() {
+  var list = getFiltered();
+  if (!list.length) { showErr('Brak wierszy do generowania.'); return; }
+  if (!templateReady || !templateBuf) { showErr('Szablon nie załadowany.'); return; }
+
+  var btn = document.getElementById('btn-gen');
+  btn.disabled = true;
+  showProg(0, 'Wczytuję szablon…');
+
+  try {
+    var zip = await JSZip.loadAsync(templateBuf);
+
+    var slideXml    = await zip.file('ppt/slides/slide1.xml').async('string');
+    var slideRels   = await zip.file('ppt/slides/_rels/slide1.xml.rels').async('string');
+    var presXml     = await zip.file('ppt/presentation.xml').async('string');
+    var presRels    = await zip.file('ppt/_rels/presentation.xml.rels').async('string');
+    var ctXml       = await zip.file('[Content_Types].xml').async('string');
+
+    // Build base rels (drop notes + rId6)
+    var baseRels = slideRels
+      .replace(/<Relationship[^>]*notesSlide[^>]*\/>/g, '')
+      .replace(/<Relationship[^>]*rId6[^>]*\/>/g, '')
+      .replace('</Relationships>', 'PHOTO_REL\nLOGO_REL\n</Relationships>');
+
+    // Remove original slide from zip
+    zip.remove('ppt/slides/slide1.xml');
+    zip.remove('ppt/slides/_rels/slide1.xml.rels');
+
+    // Wipe old slide refs
+    presRels = presRels.replace(/<Relationship[^>]*slides\/slide\d+\.xml[^>]*\/>/g, '');
+    ctXml    = ctXml.replace(/<Override PartName="\/ppt\/slides\/slide\d+\.xml"[^>]*\/>/g, '');
+
+    var sldIdLst = '', newPresRels = '', newCtEntries = '';
+    var addedExts = new Set();
+
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      var n = i + 1;
+      var slideId = 256 + i;
+      var rId = 'rId_cc' + n;
+
+      showProg(Math.round(i / list.length * 85), 'Slajd ' + n + ' z ' + list.length + ' — ' + p.imie + ' ' + p.nazwisko);
+
+      // Images
+      var photoKey = p.photoFile ? p.photoFile.toLowerCase().trim() : '';
+      var logoKey  = p.logoFile  ? p.logoFile.toLowerCase().trim()  : '';
+      var photoData = filesMap.get(photoKey);
+      var logoData  = filesMap.get(logoKey);
+
+      var photoTarget = '../media/image4.png'; // placeholder
+      var logoTarget  = '../media/image4.png';
+
+      if (photoData) {
+        var pext = getExt(p.photoFile);
+        var pmedia = 'photo_' + n + '.' + pext;
+        zip.file('ppt/media/' + pmedia, photoData.buf);
+        photoTarget = '../media/' + pmedia;
+        if (!addedExts.has(pext)) { addedExts.add(pext); ensureContentType(pext, ctXml); }
+      }
+      if (logoData) {
+        var lext = getExt(p.logoFile);
+        var lmedia = 'logo_' + n + '.' + lext;
+        zip.file('ppt/media/' + lmedia, logoData.buf);
+        logoTarget = '../media/' + lmedia;
+        if (!addedExts.has(lext)) { addedExts.add(lext); ensureContentType(lext, ctXml); }
+      }
+
+      // Slide XML
+      var xml = fillSlide(slideXml, p);
+      xml = replaceImageRid(xml, '{{Photo}}', 'rId7');
+      xml = replaceImageRid(xml, '{{Logo}}',  'rId8');
+      zip.file('ppt/slides/slide' + n + '.xml', xml);
+
+      // Rels
+      var IMG = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+      var rels = baseRels
+        .replace('PHOTO_REL', '<Relationship Id="rId7" Type="'+IMG+'" Target="'+photoTarget+'"/>')
+        .replace('LOGO_REL',  '<Relationship Id="rId8" Type="'+IMG+'" Target="'+logoTarget+'"/>');
+      zip.file('ppt/slides/_rels/slide' + n + '.xml.rels', rels);
+
+      sldIdLst   += '<p:sldId id="' + slideId + '" r:id="' + rId + '"/>';
+      newPresRels += '<Relationship Id="' + rId + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide' + n + '.xml"/>';
+      newCtEntries += '<Override PartName="/ppt/slides/slide' + n + '.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
+    }
+
+    // Update presentation.xml
+    var newPresXml = presXml.replace(
+      /<p:sldIdLst>[\s\S]*?<\/p:sldIdLst>/,
+      '<p:sldIdLst>' + sldIdLst + '</p:sldIdLst>'
+    );
+
+    // Add content-type ext entries if needed
+    addedExts.forEach(function(ext) {
+      var mime = {png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',bmp:'image/bmp',webp:'image/webp',tif:'image/tiff',tiff:'image/tiff'}[ext];
+      if (mime && !ctXml.includes('Extension="'+ext+'"')) {
+        ctXml = ctXml.replace('</Types>', '<Default Extension="'+ext+'" ContentType="'+mime+'"/></Types>');
+      }
+    });
+    ctXml = ctXml.replace('</Types>', newCtEntries + '</Types>');
+
+    zip.file('ppt/presentation.xml', newPresXml);
+    zip.file('ppt/_rels/presentation.xml.rels', presRels.replace('</Relationships>', newPresRels + '</Relationships>'));
+    zip.file('[Content_Types].xml', ctXml);
+
+    showProg(92, 'Pakuję plik…');
+    var blob = await zip.generateAsync({type:'blob', compression:'DEFLATE', compressionOptions:{level:6}});
+    hideProg();
+
+    var fname = 'Katalog_Gosci_CC_' + new Date().toISOString().slice(0,10) + '.pptx';
+    downloadBlob(blob, fname);
+
+  } catch(e) {
+    console.error(e);
+    showErr('Błąd generowania: ' + e.message);
+    hideProg();
+  }
+
+  btn.disabled = false;
+  updateGenBtn();
+}
+
+function fillSlide(xml, p) {
+  function enc(s) {
+    return String(s||'')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+  return xml
+    .replace(/\{\{Imię\}\} \{\{Nazwisko\}\}/g, enc(p.imie + ' ' + p.nazwisko))
+    .replace(/\{\{Imię\}\}/g,            enc(p.imie))
+    .replace(/\{\{Nazwisko\}\}/g,         enc(p.nazwisko))
+    .replace(/\{\{Firma\}\}/g,            enc(p.firma))
+    .replace(/\{\{Branża\}\}/g,           enc(p.branza))
+    .replace(/\{\{Opisy \/ Slajd\}\}/g,  enc(p.opis))
+    .replace(/\{\{Skala biznesu\}\}/g,    enc(p.skala));
+}
+
+function replaceImageRid(xml, descr, newRid) {
+  var descrStr = 'descr="' + descr + '"';
+  var descrPos = xml.indexOf(descrStr);
+  if (descrPos === -1) return xml;
+  var ridStr = 'r:embed="rId6"';
+  var ridPos = xml.indexOf(ridStr, descrPos);
+  if (ridPos === -1) return xml;
+  return xml.substring(0, ridPos) + 'r:embed="' + newRid + '"' + xml.substring(ridPos + ridStr.length);
+}
+
+function ensureContentType(ext, ctXml) { /* handled inline */ }
+function getExt(filename) {
+  var parts = String(filename||'').split('.');
+  return parts.length > 1 ? parts[parts.length-1].toLowerCase() : 'png';
+}
+
+// ── PROGRESS ──
+function showProg(pct, msg) {
+  document.getElementById('prog-wrap').classList.add('show');
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-lbl').textContent = msg;
+}
+function hideProg() {
+  document.getElementById('prog-wrap').classList.remove('show');
+}
+
+// ── UTILS ──
+function showErr(m) { var e=document.getElementById('err'); e.textContent=m; e.classList.add('show'); }
+function hideErr() { document.getElementById('err').classList.remove('show'); }
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function downloadBlob(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
